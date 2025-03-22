@@ -73,6 +73,21 @@ const Websocket = () => {
   );
   const [powerThreshold1, setThreshold1] = useState(0.03);
   const [powerThreshold2, setThreshold2] = useState(0.1);
+  const [values, setValues] = useState<number[]>(
+    Array.from({ length: 3 }, () => 0.03)
+  );
+
+  const incrementValue = (index: number) => {
+    setValues((prev) =>
+      prev.map((val, i) => (i === index ? Math.min(1, val + 0.01) : val))
+    );
+  };
+
+  const decrementValue = (index: number) => {
+    setValues((prev) =>
+      prev.map((val, i) => (i === index ? Math.max(0, val - 0.01) : val))
+    );
+  };
 
   ///
   const [bandPowerData, setBandPowerData] = useState<number[]>(
@@ -331,38 +346,38 @@ const Websocket = () => {
       if (!audioRef.current) return;
 
       if (
-        currentBandPowerData[0] > powerThreshold1 &&
-        currentBandPowerData[1] > powerThreshold1 &&
-        currentBandPowerData[2] > powerThreshold1
+        currentBandPowerData[0] > values[0] &&
+        currentBandPowerData[1] > values[1] &&
+        currentBandPowerData[2] > values[2]
       ) {
         playSound(1, audioRef.current.drum1);
       }
       if (
-        currentBandPowerData[0] > powerThreshold1 &&
-        currentBandPowerData[1] > powerThreshold1
+        currentBandPowerData[0] > values[0] &&
+        currentBandPowerData[1] > values[1]
       ) {
         playSound(2, audioRef.current.drum2);
       }
       if (
-        currentBandPowerData[0] > powerThreshold1 &&
-        currentBandPowerData[2] > powerThreshold1
+        currentBandPowerData[0] > values[0] &&
+        currentBandPowerData[2] > values[2]
       ) {
         playSound(3, audioRef.current.drum3);
       }
       if (
-        currentBandPowerData[1] > powerThreshold1 &&
-        currentBandPowerData[2] > powerThreshold1
+        currentBandPowerData[1] > values[1] &&
+        currentBandPowerData[2] > values[2]
       ) {
         playSound(4, audioRef.current.git6);
       }
-      if (currentBandPowerData[0] > powerThreshold1) {
-        playSound(5, audioRef.current.git5);
+      if (currentBandPowerData[0] > values[0]) {
+        playSound(5, audioRef.current.drum5);
       }
-      if (currentBandPowerData[1] > powerThreshold1) {
-        playSound(6, audioRef.current.git4);
+      if (currentBandPowerData[1] > values[1]) {
+        playSound(6, audioRef.current.git2);
       }
-      if (currentBandPowerData[2] > powerThreshold1) {
-        playSound(7, audioRef.current.flute6);
+      if (currentBandPowerData[2] > values[2]) {
+        playSound(7, audioRef.current.git5);
       }
       currentBandPowerData.forEach((power, index) => {
         const x = index * barWidth + barSpacing / 2;
@@ -505,7 +520,7 @@ const Websocket = () => {
 
 
     },
-    [theme, bandNames]
+    [theme, bandNames,values]
   );
 
 
@@ -838,64 +853,6 @@ const Websocket = () => {
     }
   }
 
-  // const containerRefs = useRef<(HTMLDivElement | null)[]>([]);
-  // const [values, setValues] = useState(
-  //   [...Array(3)].map(() => ({ lower: 20, upper: 60 })) // Create an array for each div
-  // );
-  // const [activeSlider, setActiveSlider] = useState<string | null>(null);
-
-
-  // const getPercentage = (clientY: number, index: number) => {
-  //   const ref = containerRefs.current[index];
-  //   if (!ref) return 0;
-  //   const rect = ref.getBoundingClientRect();
-  //   let y = clientY - rect.top;
-  //   y = Math.max(0, Math.min(y, rect.height));
-  //   return (y / rect.height) * 100;
-  // };
-
-  // const handleMouseDown = (slider: "lower" | "upper", index: number) => () => {
-  //   setActiveSlider(`${slider}-${index}`);
-  // };
-
-  // const handleMouseMove = (event: MouseEvent) => {
-  //   if (!activeSlider) return;
-
-  //   const [slider, indexStr] = activeSlider.split("-");
-  //   const index = Number(indexStr);
-  //   if (isNaN(index)) return;
-
-  //   const desired = getPercentage(event.clientY, index);
-  //   setValues(prevValues => {
-  //     return prevValues.map((val, i) => {
-  //       if (i === index) {
-  //         return {
-  //           lower: slider === "lower" ? Math.max(0, Math.min(desired, val.upper - 20)) : val.lower,
-  //           upper: slider === "upper" ? Math.min(100, Math.max(desired, val.lower + 20)) : val.upper,
-  //         };
-  //       }
-  //       return val;
-  //     });
-  //   });
-  // };
-
-  // const handleMouseUp = () => {
-  //   setActiveSlider(null);
-  // };
-
-  // useEffect(() => {
-  //   if (activeSlider) {
-  //     window.addEventListener("mousemove", handleMouseMove);
-  //     window.addEventListener("mouseup", handleMouseUp);
-  //   } else {
-  //     window.removeEventListener("mousemove", handleMouseMove);
-  //     window.removeEventListener("mouseup", handleMouseUp);
-  //   }
-  //   return () => {
-  //     window.removeEventListener("mousemove", handleMouseMove);
-  //     window.removeEventListener("mouseup", handleMouseUp);
-  //   };
-  // }, [activeSlider]);
 
   return (
     <div className="flex flex-col h-screen m-0 p-0 bg-g ">
@@ -988,6 +945,66 @@ Connect                        </>
             </Tooltip>
           </TooltipProvider>
 
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Popover open={open} onOpenChange={setOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      className="flex items-center gap-1 py-2 px-4 rounded-xl font-semibold"
+                    >
+                  Settings
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-50 p-4 mx-4 mb-2">
+      <div className="flex flex-col max-h-80 overflow-y-auto">
+        <div className="flex items-center pb-2">
+          <div className="flex space-x-2">
+            {values.map((value, index) => (
+              <div
+                key={index}
+                className="flex border border-input rounded-xl items-center mx-0 px-0"
+              >
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => decrementValue(index)}
+                  className={`rounded-xl rounded-r-none border-0 ${
+                    value === 0
+                      ? "bg-red-700 hover:bg-white-500 hover:text-white text-white"
+                      : "bg-white-500"
+                  }`}
+                >
+                  -
+                </Button>
+
+                <span className="px-2">{value.toFixed(2)}</span>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => incrementValue(index)}
+                  className={`rounded-xl rounded-l-none border-0 ${
+                    value === 1
+                      ? "bg-green-700 hover:bg-white-500 text-white hover:text-white"
+                      : "bg-white-500"
+                  }`}
+                >
+                  +
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </PopoverContent>
+                </Popover>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{isConnected ? "Disconnect Device" : "Connect Device"}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
 
           {/* filters */}
           <Popover

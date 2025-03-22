@@ -10,14 +10,15 @@ import {
 import { cn } from "../lib/utils";
 import { Toaster } from "../components/ui/sonner";
 import "./globals.css";
-const basePath = "/Muscle_game";
+const isGithubActor = process.env.NEXT_PUBLIC_GITHUB_ACTOR === "upsidedownlabs" || process.env.NEXT_PUBLIC_GITHUB_ACTOR === undefined;
+const basePath = isGithubActor ? "" : "/Muscle_game";
 
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Muscle_Melody",
-  description: "Web Serial based Biopotential Signal recorder application.",
+  description: "Web Bluetooth based game application.",
   manifest: `${basePath}/manifest.json`, // ✅ Dynamically set manifest path
 };
 

@@ -12,8 +12,8 @@ const isGithubActor = process.env.NEXT_PUBLIC_GITHUB_ACTOR === "upsidedownlabs" 
 const config = {
   reactStrictMode: true,
   output: "export", // Ensures it works with static export
-  basePath:"/Muscle_game",
-  assetPrefix: "/Muscle_game",
+  basePath:"",
+  assetPrefix: "",
   images: {
     unoptimized: true,
     remotePatterns: [
