@@ -13,7 +13,7 @@ const config = {
   reactStrictMode: true,
   output: "export", // Ensures it works with static export
   basePath:"",
-  assetPrefix: "Muscle_game",
+  assetPrefix: "/Muscle_game",
   images: {
     unoptimized: true,
     remotePatterns: [
