@@ -1,4 +1,4 @@
-// TypeScript filter classes for Chords
+// TypeScript filter classes for Muscle_Melody
 // Made with <3 at Upside Down labs
 // Author: Aman Maheshwari
 //

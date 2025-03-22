@@ -1,6 +1,6 @@
 {
-  "name": "chords",
-  "version": "2.5.0a",
+  "name": "Muscle_Melody",
+  "version": "0.0.1",
   "private": true,
   "scripts": {
     "dev": "next dev",

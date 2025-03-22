@@ -71,8 +71,8 @@ const Websocket = () => {
     () => ["CH0", "CH1", "CH2"],
     []
   );
-  const [powerThreshold1, setThreshold1] = useState(0.05);
-  const [powerThreshold2, setThreshold2] = useState(0.1);
+  const [powerThreshold1, setThreshold1] = useState(0.1);
+  const [powerThreshold2, setThreshold2] = useState(0.4);
 
   ///
   const [bandPowerData, setBandPowerData] = useState<number[]>(
@@ -218,7 +218,6 @@ const Websocket = () => {
         return;
       }
 
-
       // Ensure sweepPositions.current[i] is initialized
       if (sweepPositions.current[i] === undefined) {
         sweepPositions.current[i] = 0;
@@ -255,16 +254,21 @@ const Websocket = () => {
   };
 
   const powerBuffer = useRef<number[][]>(bandNames.map(() => []));
-  const playedSounds = new Set<number>();
 
-  function playSound(index: number, sound: HTMLAudioElement) {
-    if (!playedSounds.has(index)) {
-      sound.play();
-      playedSounds.add(index);
-      setTimeout(() => playedSounds.delete(index), 1000); // Reset after 500ms
+  const debounceMap: Record<number, NodeJS.Timeout | null> = {
+    0: null,
+    1: null,
+    2: null,
+  };
+  
+  const debouncePlay = (index: number, sound: () => void, delay = 100) => {
+    if (debounceMap[index]) {
+      clearTimeout(debounceMap[index]!);
     }
-  }
-
+    debounceMap[index] = setTimeout(sound, delay);
+  };
+  
+  
   const drawGraph = useCallback(
     (currentBandPowerData: number[]) => {
       const canvas = canvasRef.current;
@@ -305,8 +309,8 @@ const Websocket = () => {
         powerBuffer.current[index].push(power);
       });
       //drum
-      const drum1 = new Audio("/sounds/radh_ radhe.mp3");
-      const drum2 = new Audio("/sounds/1-6.mp3");
+      const drum1 = new Audio("/sounds/01_1.mp3");
+      const drum2 = new Audio("/sounds/1-2.mp3");
       const drum3 = new Audio("/sounds/1-3.mp3");
       const drum4 = new Audio("/sounds/1-4.mp3");
       const drum5 = new Audio("/sounds/1-5.mp3");
@@ -393,10 +397,32 @@ const Websocket = () => {
         ctx.lineTo(infoBlockX + 2 * sectionWidth, infoBlockY + infoBlockH);
         ctx.stroke();
 
+        // Play sound based on threshold
+        // if (power > powerThreshold2) {
+        //   if (index === 0) drum1.play(); // Band 1 high power
+        //   else if (index === 1) drum3.play(); // Band 2 high power
+        //   else if (index === 2) drum5.play(); // Band 3 high power
+        // } else if (power > powerThreshold1) {
+        //   if (index === 0) drum2.play(); // Band 1 medium power
+        //   else if (index === 1) drum4.play(); // Band 2 medium power
+        //   else if (index === 2) drum6.play(); // Band 3 medium power
+        // }
         if (power > powerThreshold2) {
-          playSound(index, index === 0 ? drum2 : index === 1 ? flute4 : git6);
+          if (index === 0) {
+            debouncePlay(0, () => drum2.play());
+          } else if (index === 1) {
+            debouncePlay(1, () => flute4.play());
+          } else if (index === 2) {
+            debouncePlay(2, () => git6.play());
+          }
         } else if (power > powerThreshold1) {
-          playSound(index, index === 0 ? drum1 : index === 1 ? flute3 : git5);
+          if (index === 0) {
+            debouncePlay(0, () => drum1.play());
+          } else if (index === 1) {
+            debouncePlay(1, () => flute3.play());
+          } else if (index === 2) {
+            debouncePlay(2, () => git5.play());
+          }
         }
         // Bar height based on power value
         const normalizedHeight = power;
@@ -618,14 +644,22 @@ const Websocket = () => {
       return;
     }
 
-
+    // const sync1 = dataView.getUint8(0);
+    // const sync2 = dataView.getUint8(1);
     const sampleCounter = dataView.getUint8(2);
+    // const endByte = dataView.getUint8(9);
+
+    // if (sync1 !== 0xC7 || sync2 !== 0x7C || endByte !== 0x01) {
+    //     //   console.log(`Invalid sample header/footer: ${sync1} ${sync2} ${endByte}`);
+    //     return;
+    // }
 
     if (prevSampleCounter === null) {
       prevSampleCounter = sampleCounter;
     } else {
       const expected = (prevSampleCounter + 1) % 256;
       if (sampleCounter !== expected) {
+        // console.log(`Missing sample: expected ${expected}, got ${sampleCounter}`);
       }
       prevSampleCounter = sampleCounter;
     }
@@ -675,9 +709,9 @@ const Websocket = () => {
       return (this.sum / this.bufferSize);
     }
   }
-  const envelope1 = new EnvelopeFilter(16);
-  const envelope2 = new EnvelopeFilter(16);
-  const envelope3 = new EnvelopeFilter(16);
+  const envelope1 = new EnvelopeFilter(64);
+  const envelope2 = new EnvelopeFilter(64);
+  const envelope3 = new EnvelopeFilter(64);
 
   function handledata(event: Event): void {
     const target = event.target as BluetoothRemoteGATTCharacteristicExtended;
@@ -801,64 +835,89 @@ const Websocket = () => {
     }
   }
 
+
+
+
+  // const [thresholds, setThresholds] = useState<number[]>(new Array(bandNames.length).fill(0.5)); // Default 0.5
+
+  // const handleThresholdChange = (index: number, value: number) => {
+  //   setThresholds(prev => {
+  //     const newThresholds = [...prev];
+  //     newThresholds[index] = value;
+  //     return newThresholds;
+  //   });
+  // };
+
+
+
+  // const [thresholds2, setThresholds2] = useState<number[]>(new Array(bandNames.length).fill(0.5)); // Default 0.5
+
+  // const handleThresholdChange2 = (index: number, value: number) => {
+  //   setThresholds2(prev => {
+  //     const newThresholds = [...prev];
+  //     newThresholds[index] = value;
+  //     return newThresholds;
+  //   });
+  // };
+
   const containerRefs = useRef<(HTMLDivElement | null)[]>([]);
   const [values, setValues] = useState(
     [...Array(3)].map(() => ({ lower: 20, upper: 60 })) // Create an array for each div
-  );
-  const [activeSlider, setActiveSlider] = useState<string | null>(null);
+  ); 
+   const [activeSlider, setActiveSlider] = useState<string | null>(null);
+  
+ 
+const getPercentage = (clientY: number, index: number) => {
+  const ref = containerRefs.current[index];
+  if (!ref) return 0;
+  const rect = ref.getBoundingClientRect();
+  let y = clientY - rect.top;
+  y = Math.max(0, Math.min(y, rect.height));
+  return (y / rect.height) * 100;
+};
 
+const handleMouseDown = (slider: "lower" | "upper", index: number) => () => {
+  setActiveSlider(`${slider}-${index}`);
+};
 
-  const getPercentage = (clientY: number, index: number) => {
-    const ref = containerRefs.current[index];
-    if (!ref) return 0;
-    const rect = ref.getBoundingClientRect();
-    let y = clientY - rect.top;
-    y = Math.max(0, Math.min(y, rect.height));
-    return (y / rect.height) * 100;
-  };
+const handleMouseMove = (event: MouseEvent) => {
+  if (!activeSlider) return;
 
-  const handleMouseDown = (slider: "lower" | "upper", index: number) => () => {
-    setActiveSlider(`${slider}-${index}`);
-  };
+  const [slider, indexStr] = activeSlider.split("-");
+  const index = Number(indexStr);
+  if (isNaN(index)) return;
 
-  const handleMouseMove = (event: MouseEvent) => {
-    if (!activeSlider) return;
-
-    const [slider, indexStr] = activeSlider.split("-");
-    const index = Number(indexStr);
-    if (isNaN(index)) return;
-
-    const desired = getPercentage(event.clientY, index);
-    setValues(prevValues => {
-      return prevValues.map((val, i) => {
-        if (i === index) {
-          return {
-            lower: slider === "lower" ? Math.max(0, Math.min(desired, val.upper - 20)) : val.lower,
-            upper: slider === "upper" ? Math.min(100, Math.max(desired, val.lower + 20)) : val.upper,
-          };
-        }
-        return val;
-      });
+  const desired = getPercentage(event.clientY, index);
+  setValues(prevValues => {
+    return prevValues.map((val, i) => {
+      if (i === index) {
+        return {
+          lower: slider === "lower" ? Math.max(0, Math.min(desired, val.upper - 20)) : val.lower,
+          upper: slider === "upper" ? Math.min(100, Math.max(desired, val.lower + 20)) : val.upper,
+        };
+      }
+      return val;
     });
-  };
+  });
+};
 
-  const handleMouseUp = () => {
-    setActiveSlider(null);
-  };
+const handleMouseUp = () => {
+  setActiveSlider(null);
+};
 
-  useEffect(() => {
-    if (activeSlider) {
-      window.addEventListener("mousemove", handleMouseMove);
-      window.addEventListener("mouseup", handleMouseUp);
-    } else {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
-    }
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
-    };
-  }, [activeSlider]);
+useEffect(() => {
+  if (activeSlider) {
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+  } else {
+    window.removeEventListener("mousemove", handleMouseMove);
+    window.removeEventListener("mouseup", handleMouseUp);
+  }
+  return () => {
+    window.removeEventListener("mousemove", handleMouseMove);
+    window.removeEventListener("mouseup", handleMouseUp);
+  };
+}, [activeSlider]);
 
   return (
     <div className="flex flex-col h-screen m-0 p-0 bg-g ">
@@ -885,7 +944,7 @@ const Websocket = () => {
                     containerRefs.current[index] = el;
                   }}
                   className="absolute  w-16 h-96 ml-24 bg-transparent"
-                  style={{ top: `${280}px`, left: `${index * 190}px` }}
+                  style={{ top: `${ 280}px` , left: `${index * 190 }px` }}
                 >
                   <div
                     className="absolute left-[-25px] right-[-25px] h-5 bg-gray-600 cursor-ns-resize rounded-md flex justify-center items-center"

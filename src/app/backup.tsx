@@ -218,7 +218,6 @@ const Websocket = () => {
         return;
       }
 
-
       // Ensure sweepPositions.current[i] is initialized
       if (sweepPositions.current[i] === undefined) {
         sweepPositions.current[i] = 0;
@@ -264,7 +263,7 @@ const Websocket = () => {
       setTimeout(() => playedSounds.delete(index), 1000); // Reset after 500ms
     }
   }
-
+  
   const drawGraph = useCallback(
     (currentBandPowerData: number[]) => {
       const canvas = canvasRef.current;
@@ -618,14 +617,22 @@ const Websocket = () => {
       return;
     }
 
-
+    // const sync1 = dataView.getUint8(0);
+    // const sync2 = dataView.getUint8(1);
     const sampleCounter = dataView.getUint8(2);
+    // const endByte = dataView.getUint8(9);
+
+    // if (sync1 !== 0xC7 || sync2 !== 0x7C || endByte !== 0x01) {
+    //     //   console.log(`Invalid sample header/footer: ${sync1} ${sync2} ${endByte}`);
+    //     return;
+    // }
 
     if (prevSampleCounter === null) {
       prevSampleCounter = sampleCounter;
     } else {
       const expected = (prevSampleCounter + 1) % 256;
       if (sampleCounter !== expected) {
+        // console.log(`Missing sample: expected ${expected}, got ${sampleCounter}`);
       }
       prevSampleCounter = sampleCounter;
     }
@@ -801,64 +808,89 @@ const Websocket = () => {
     }
   }
 
+
+
+
+  // const [thresholds, setThresholds] = useState<number[]>(new Array(bandNames.length).fill(0.5)); // Default 0.5
+
+  // const handleThresholdChange = (index: number, value: number) => {
+  //   setThresholds(prev => {
+  //     const newThresholds = [...prev];
+  //     newThresholds[index] = value;
+  //     return newThresholds;
+  //   });
+  // };
+
+
+
+  // const [thresholds2, setThresholds2] = useState<number[]>(new Array(bandNames.length).fill(0.5)); // Default 0.5
+
+  // const handleThresholdChange2 = (index: number, value: number) => {
+  //   setThresholds2(prev => {
+  //     const newThresholds = [...prev];
+  //     newThresholds[index] = value;
+  //     return newThresholds;
+  //   });
+  // };
+
   const containerRefs = useRef<(HTMLDivElement | null)[]>([]);
   const [values, setValues] = useState(
     [...Array(3)].map(() => ({ lower: 20, upper: 60 })) // Create an array for each div
-  );
-  const [activeSlider, setActiveSlider] = useState<string | null>(null);
+  ); 
+   const [activeSlider, setActiveSlider] = useState<string | null>(null);
+  
+ 
+const getPercentage = (clientY: number, index: number) => {
+  const ref = containerRefs.current[index];
+  if (!ref) return 0;
+  const rect = ref.getBoundingClientRect();
+  let y = clientY - rect.top;
+  y = Math.max(0, Math.min(y, rect.height));
+  return (y / rect.height) * 100;
+};
 
+const handleMouseDown = (slider: "lower" | "upper", index: number) => () => {
+  setActiveSlider(`${slider}-${index}`);
+};
 
-  const getPercentage = (clientY: number, index: number) => {
-    const ref = containerRefs.current[index];
-    if (!ref) return 0;
-    const rect = ref.getBoundingClientRect();
-    let y = clientY - rect.top;
-    y = Math.max(0, Math.min(y, rect.height));
-    return (y / rect.height) * 100;
-  };
+const handleMouseMove = (event: MouseEvent) => {
+  if (!activeSlider) return;
 
-  const handleMouseDown = (slider: "lower" | "upper", index: number) => () => {
-    setActiveSlider(`${slider}-${index}`);
-  };
+  const [slider, indexStr] = activeSlider.split("-");
+  const index = Number(indexStr);
+  if (isNaN(index)) return;
 
-  const handleMouseMove = (event: MouseEvent) => {
-    if (!activeSlider) return;
-
-    const [slider, indexStr] = activeSlider.split("-");
-    const index = Number(indexStr);
-    if (isNaN(index)) return;
-
-    const desired = getPercentage(event.clientY, index);
-    setValues(prevValues => {
-      return prevValues.map((val, i) => {
-        if (i === index) {
-          return {
-            lower: slider === "lower" ? Math.max(0, Math.min(desired, val.upper - 20)) : val.lower,
-            upper: slider === "upper" ? Math.min(100, Math.max(desired, val.lower + 20)) : val.upper,
-          };
-        }
-        return val;
-      });
+  const desired = getPercentage(event.clientY, index);
+  setValues(prevValues => {
+    return prevValues.map((val, i) => {
+      if (i === index) {
+        return {
+          lower: slider === "lower" ? Math.max(0, Math.min(desired, val.upper - 20)) : val.lower,
+          upper: slider === "upper" ? Math.min(100, Math.max(desired, val.lower + 20)) : val.upper,
+        };
+      }
+      return val;
     });
-  };
+  });
+};
 
-  const handleMouseUp = () => {
-    setActiveSlider(null);
-  };
+const handleMouseUp = () => {
+  setActiveSlider(null);
+};
 
-  useEffect(() => {
-    if (activeSlider) {
-      window.addEventListener("mousemove", handleMouseMove);
-      window.addEventListener("mouseup", handleMouseUp);
-    } else {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
-    }
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
-    };
-  }, [activeSlider]);
+useEffect(() => {
+  if (activeSlider) {
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+  } else {
+    window.removeEventListener("mousemove", handleMouseMove);
+    window.removeEventListener("mouseup", handleMouseUp);
+  }
+  return () => {
+    window.removeEventListener("mousemove", handleMouseMove);
+    window.removeEventListener("mouseup", handleMouseUp);
+  };
+}, [activeSlider]);
 
   return (
     <div className="flex flex-col h-screen m-0 p-0 bg-g ">
@@ -885,7 +917,7 @@ const Websocket = () => {
                     containerRefs.current[index] = el;
                   }}
                   className="absolute  w-16 h-96 ml-24 bg-transparent"
-                  style={{ top: `${280}px`, left: `${index * 190}px` }}
+                  style={{ top: `${ 280}px` , left: `${index * 190 }px` }}
                 >
                   <div
                     className="absolute left-[-25px] right-[-25px] h-5 bg-gray-600 cursor-ns-resize rounded-md flex justify-center items-center"
