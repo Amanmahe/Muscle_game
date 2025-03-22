@@ -269,7 +269,7 @@ const Websocket = () => {
   useEffect(() => {
     // Preload audio elements and store in ref
     audioRef.current = {
-      drum1: new Audio("/sounds/radh_ radhe.mp3"),
+      drum1: new Audio("/sounds/soothing-fantasy-292661.mp3"),
       drum2: new Audio("/sounds/1-6.mp3"),
       drum3: new Audio("/sounds/1-3.mp3"),
       drum4: new Audio("/sounds/1-4.mp3"),
@@ -335,28 +335,34 @@ const Websocket = () => {
         currentBandPowerData[1] > powerThreshold1 &&
         currentBandPowerData[2] > powerThreshold1
       ) {
-        playSound(0, audioRef.current.drum1);
-      } else if (
+        playSound(1, audioRef.current.drum1);
+      }
+      if (
         currentBandPowerData[0] > powerThreshold1 &&
         currentBandPowerData[1] > powerThreshold1
       ) {
-        playSound(0, audioRef.current.drum2);
-      } else if (
+        playSound(2, audioRef.current.drum2);
+      }
+      if (
         currentBandPowerData[0] > powerThreshold1 &&
         currentBandPowerData[2] > powerThreshold1
       ) {
-        playSound(0, audioRef.current.drum3);
-      } else if (
+        playSound(3, audioRef.current.drum3);
+      }
+      if (
         currentBandPowerData[1] > powerThreshold1 &&
         currentBandPowerData[2] > powerThreshold1
       ) {
-        playSound(0, audioRef.current.git6);
-      } else if (currentBandPowerData[0] > powerThreshold1) {
-        playSound(0, audioRef.current.git5);
-      } else if (currentBandPowerData[1] > powerThreshold1) {
-        playSound(0, audioRef.current.git4);
-      } else if (currentBandPowerData[2] > powerThreshold1) {
-        playSound(0, audioRef.current.flute6);
+        playSound(4, audioRef.current.git6);
+      }
+      if (currentBandPowerData[0] > powerThreshold1) {
+        playSound(5, audioRef.current.git5);
+      }
+      if (currentBandPowerData[1] > powerThreshold1) {
+        playSound(6, audioRef.current.git4);
+      }
+      if (currentBandPowerData[2] > powerThreshold1) {
+        playSound(7, audioRef.current.flute6);
       }
       currentBandPowerData.forEach((power, index) => {
         const x = index * barWidth + barSpacing / 2;
@@ -467,43 +473,77 @@ const Websocket = () => {
         ctx.font = "14px Arial";
         ctx.textAlign = "center";
         ctx.textBaseline = "top";
+        const clickableAreas: { x: number; y: number; width: number; height: number; type: string; index: number }[] = [];
 
         currentBandPowerData.forEach((_, index) => {
-          const barX = index * barWidth + barSpacing / 2 + (barWidth - barActualWidth) / 2;
-          const labelX = barX + barActualWidth / 2;
+          const barX = index * barWidth + barSpacing / 2 + (barWidth - barActualWidth) / 2; // Align bars correctly
+          const labelX = barX + barActualWidth / 2; // Center text under the bar
           const labelY = height - padding + 2;
-          const buttonSize = 15;
+          const labelWidth = barActualWidth;
+          const labelHeight = 30;
         
-          // Draw label background
+          // Draw background rectangle with border
           ctx.fillStyle = theme === "dark" ? "#020817" : "#FFFFFF";
           ctx.beginPath();
-          ctx.roundRect(barX, labelY, barActualWidth, 30, [0, 0, 8, 8]);
+          ctx.roundRect(barX, labelY, labelWidth, labelHeight, [0, 0, 8, 8]); // Bottom corners rounded
           ctx.fill();
+        
           ctx.strokeStyle = axisColor;
           ctx.lineWidth = 2;
           ctx.stroke();
         
-          // Draw text
+          // // Draw lines between bars
+          // if (index > 0) {
+          //   const prevBarX = (index - 1) * barWidth + barSpacing / 2 + (barWidth - barActualWidth) / 2;
+          //   const prevLabelX = prevBarX + barActualWidth / 2;
+            
+          //   ctx.beginPath();
+          //   ctx.moveTo(prevLabelX + labelWidth / 2, labelY + labelHeight / 2);
+          //   ctx.lineTo(labelX - labelWidth / 2, labelY + labelHeight / 2);
+          //   ctx.stroke();
+          // }
+        
+          // Draw text (Channel labels)
           ctx.fillStyle = axisColor;
           ctx.textAlign = "center";
-          ctx.fillText(`Channel${index}`, labelX, labelY + 15);
+          ctx.fillText(`Channel${index}`, labelX, labelY + labelHeight / 2 - 5);
         
-          // Draw "-" button
-          const minusX = labelX - 20;
-          const plusX = labelX + 10;
-          const buttonY = labelY + 10;
-          ctx.fillStyle = "#ff5252"; // Red for minus
-          ctx.fillRect(minusX, buttonY, buttonSize, buttonSize);
-          ctx.fillStyle = "#ffffff";
-          ctx.fillText("-", minusX + buttonSize / 2, buttonY + buttonSize - 5);
+          // Draw "+" on the right side
+          ctx.fillText("+", barX + labelWidth -15, labelY + labelHeight / 2 - 5);
         
-          // Draw "+" button
-          ctx.fillStyle = "#4caf50"; // Green for plus
-          ctx.fillRect(plusX, buttonY, buttonSize, buttonSize);
-          ctx.fillStyle = "#ffffff";
-          ctx.fillText("+", plusX + buttonSize / 2, buttonY + buttonSize - 5);
+          // Draw "−" on the left side
+          ctx.fillText("−", barX + 15, labelY + labelHeight / 2 - 5);
+          clickableAreas.push({ x: barX - 15, y: labelY, width: 20, height: 20, type: "minus", index });
+          clickableAreas.push({ x: barX + labelWidth + 5, y: labelY, width: 20, height: 20, type: "plus", index });
         });
+        
+        canvas.addEventListener("click", (event: MouseEvent) => {
+          const rect = canvas.getBoundingClientRect();
+          const mouseX = event.clientX - rect.left;
+          const mouseY = event.clientY - rect.top;
+        
+          clickableAreas.forEach((area) => {
+            if (
+              mouseX >= area.x &&
+              mouseX <= area.x + area.width &&
+              mouseY >= area.y &&
+              mouseY <= area.y + area.height
+            ) {
+              if (area.type === "plus") {
+                console.log(`Plus clicked on Channel ${area.index}`);
+                // Perform action for "+"
+              } else if (area.type === "minus") {
+                console.log(`Minus clicked on Channel ${area.index}`);
+                // Perform action for "-"
+              }
+            }
+          });
+        });
+        
+
       });
+
+
     },
     [theme, bandNames]
   );
@@ -975,8 +1015,7 @@ const Websocket = () => {
                         </>
                       ) : (
                         <>
-                          Strength Visualizer
-                        </>
+Connect                        </>
                       )}
                     </Button>
                   </PopoverTrigger>
