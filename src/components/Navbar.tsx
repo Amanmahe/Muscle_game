@@ -38,7 +38,7 @@ const Navbar = ({ isDisplay }: { isDisplay: boolean }) => {
           <div className="flex gap-0 md:gap-2 items-center">
             <ModeToggle disabled={!isDisplay} />
             <Link
-              href="https://github.com/Amanmahe/Muscle_game"
+              href="https://github.com/Amanmahe/Muscle_game/tree/muscle-strength"
               target="__blank"
             >
               <Button variant={"ghost"} size={"sm"}>

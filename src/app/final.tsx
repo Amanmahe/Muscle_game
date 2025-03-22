@@ -286,7 +286,7 @@ const Websocket = () => {
       git3: new Audio("/sounds/3-3.mp3"),
       git4: new Audio("/sounds/3-4.mp3"),
       git5: new Audio("/sounds/3-5.mp3"),
-      git6: new Audio("/sounds/3-5.mp3"),
+      git6: new Audio("/sounds/3-6.mp3"),
     };
   }, []);
   const drawGraph = useCallback(
@@ -491,15 +491,55 @@ const Websocket = () => {
           ctx.strokeStyle = axisColor;
           ctx.lineWidth = 2;
           ctx.stroke();
-      
+        
+          // // Draw lines between bars
+          // if (index > 0) {
+          //   const prevBarX = (index - 1) * barWidth + barSpacing / 2 + (barWidth - barActualWidth) / 2;
+          //   const prevLabelX = prevBarX + barActualWidth / 2;
+            
+          //   ctx.beginPath();
+          //   ctx.moveTo(prevLabelX + labelWidth / 2, labelY + labelHeight / 2);
+          //   ctx.lineTo(labelX - labelWidth / 2, labelY + labelHeight / 2);
+          //   ctx.stroke();
+          // }
+        
+          // Draw text (Channel labels)
           ctx.fillStyle = axisColor;
           ctx.textAlign = "center";
           ctx.fillText(`Channel${index}`, labelX, labelY + labelHeight / 2 - 5);
-   
         
+          // Draw "+" on the right side
+          ctx.fillText("+", barX + labelWidth -15, labelY + labelHeight / 2 - 5);
+        
+          // Draw "−" on the left side
+          ctx.fillText("−", barX + 15, labelY + labelHeight / 2 - 5);
+          clickableAreas.push({ x: barX - 15, y: labelY, width: 20, height: 20, type: "minus", index });
+          clickableAreas.push({ x: barX + labelWidth + 5, y: labelY, width: 20, height: 20, type: "plus", index });
         });
         
-      
+        canvas.addEventListener("click", (event: MouseEvent) => {
+          const rect = canvas.getBoundingClientRect();
+          const mouseX = event.clientX - rect.left;
+          const mouseY = event.clientY - rect.top;
+        
+          clickableAreas.forEach((area) => {
+            if (
+              mouseX >= area.x &&
+              mouseX <= area.x + area.width &&
+              mouseY >= area.y &&
+              mouseY <= area.y + area.height
+            ) {
+              if (area.type === "plus") {
+                console.log(`Plus clicked on Channel ${area.index}`);
+                // Perform action for "+"
+              } else if (area.type === "minus") {
+                console.log(`Minus clicked on Channel ${area.index}`);
+                // Perform action for "-"
+              }
+            }
+          });
+        });
+        
 
       });
 
@@ -1032,7 +1072,40 @@ Connect                        </>
                           }`}
                       >
                         <BicepsFlexed size={17} />
-                      </Button> 
+                      </Button> <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => applyEXGFilterToAllChannels(Array.from({ length: maxCanvasElementCountRef.current }, (_, i) => i), 3)}
+                        className={`flex items-center justify-center px-3 py-2 rounded-none select-none border-0
+                        ${Object.keys(appliedEXGFiltersRef.current).length === maxCanvasElementCountRef.current && Object.values(appliedEXGFiltersRef.current).every((value) => value === 3)
+                            ? "bg-green-700 hover:bg-white-500 text-white hover:text-white" // Disabled background
+                            : "bg-white-500" // Active background
+                          }`}
+                      >
+                        <Brain size={17} />
+                      </Button> <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => applyEXGFilterToAllChannels(Array.from({ length: maxCanvasElementCountRef.current }, (_, i) => i), 1)}
+                        className={`flex items-center justify-center px-3 py-2 rounded-none select-none border-0
+                        ${Object.keys(appliedEXGFiltersRef.current).length === maxCanvasElementCountRef.current && Object.values(appliedEXGFiltersRef.current).every((value) => value === 1)
+                            ? "bg-green-700 hover:bg-white-500 text-white hover:text-white" // Disabled background
+                            : "bg-white-500" // Active background
+                          }`}
+                      >
+                        <Heart size={17} />
+                      </Button> <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => applyEXGFilterToAllChannels(Array.from({ length: maxCanvasElementCountRef.current }, (_, i) => i), 2)}
+                        className={`rounded-xl rounded-l-none border-0
+                        ${Object.keys(appliedEXGFiltersRef.current).length === maxCanvasElementCountRef.current && Object.values(appliedEXGFiltersRef.current).every((value) => value === 2)
+                            ? "bg-green-700 hover:bg-white-500 text-white hover:text-white" // Disabled background
+                            : "bg-white-500" // Active background
+                          }`}
+                      >
+                        <Eye size={17} />
+                      </Button>
                     </div>
                     <div className="flex border border-input rounded-xl items-center mx-0 px-0">
                       <Button
@@ -1106,7 +1179,42 @@ Connect                        </>
                           >
                             <BicepsFlexed size={17} />
                           </Button>
-                        
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleFrequencySelectionEXG(index, 3)}
+                            className={`flex items-center justify-center px-3 py-2 rounded-none select-none border-0
+                                                      ${appliedEXGFiltersRef.current[index] === 3
+                                ? "bg-green-700 hover:bg-white-500 text-white hover:text-white" // Disabled background
+                                : "bg-white-500" // Active background
+                              }`}
+                          >
+                            <Brain size={17} />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleFrequencySelectionEXG(index, 1)}
+                            className={`flex items-center justify-center px-3 py-2 rounded-none select-none border-0
+                                                        ${appliedEXGFiltersRef.current[index] === 1
+                                ? "bg-green-700 hover:bg-white-500 text-white hover:text-white" // Disabled background
+                                : "bg-white-500" // Active background
+                              }`}
+                          >
+                            <Heart size={17} />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleFrequencySelectionEXG(index, 2)}
+                            className={`rounded-xl rounded-l-none border-0
+                                                        ${appliedEXGFiltersRef.current[index] === 2
+                                ? "bg-green-700 hover:bg-white-500 text-white hover:text-white" // Disabled background
+                                : "bg-white-500" // Active background
+                              }`}
+                          >
+                            <Eye size={17} />
+                          </Button>
                         </div>
                         <div className="flex border border-input rounded-xl items-center mx-0 px-0">
                           <Button
