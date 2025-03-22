@@ -71,7 +71,7 @@ const Websocket = () => {
     () => ["CH0", "CH1", "CH2"],
     []
   );
-  const [powerThreshold1, setThreshold1] = useState(0.05);
+  const [powerThreshold1, setThreshold1] = useState(0.03);
   const [powerThreshold2, setThreshold2] = useState(0.1);
 
   ///
@@ -256,15 +256,39 @@ const Websocket = () => {
 
   const powerBuffer = useRef<number[][]>(bandNames.map(() => []));
   const playedSounds = new Set<number>();
-
+  
   function playSound(index: number, sound: HTMLAudioElement) {
     if (!playedSounds.has(index)) {
       sound.play();
       playedSounds.add(index);
-      setTimeout(() => playedSounds.delete(index), 1000); // Reset after 500ms
+      setTimeout(() => playedSounds.delete(index), 1000); // Reset after 1s
     }
   }
+  const audioRef = useRef<{ [key: string]: HTMLAudioElement }>({});
 
+  useEffect(() => {
+    // Preload audio elements and store in ref
+    audioRef.current = {
+      drum1: new Audio("/sounds/radh_ radhe.mp3"),
+      drum2: new Audio("/sounds/1-6.mp3"),
+      drum3: new Audio("/sounds/1-3.mp3"),
+      drum4: new Audio("/sounds/1-4.mp3"),
+      drum5: new Audio("/sounds/1-5.mp3"),
+      drum6: new Audio("/sounds/1-6.mp3"),
+      flute1: new Audio("/sounds/2_1.mp3"),
+      flute2: new Audio("/sounds/2-2.mp3"),
+      flute3: new Audio("/sounds/2-3.mp3"),
+      flute4: new Audio("/sounds/2-4mp3.mp3"),
+      flute5: new Audio("/sounds/2-5..mp3"),
+      flute6: new Audio("/sounds/2-6.mp3"),
+      git1: new Audio("/sounds/3-1.mp3"),
+      git2: new Audio("/sounds/3-2.mp3"),
+      git3: new Audio("/sounds/3-3.mp3"),
+      git4: new Audio("/sounds/3-4.mp3"),
+      git5: new Audio("/sounds/3-5.mp3"),
+      git6: new Audio("/sounds/3-6.mp3"),
+    };
+  }, []);
   const drawGraph = useCallback(
     (currentBandPowerData: number[]) => {
       const canvas = canvasRef.current;
@@ -304,28 +328,36 @@ const Websocket = () => {
         }
         powerBuffer.current[index].push(power);
       });
-      //drum
-      const drum1 = new Audio("/sounds/radh_ radhe.mp3");
-      const drum2 = new Audio("/sounds/1-6.mp3");
-      const drum3 = new Audio("/sounds/1-3.mp3");
-      const drum4 = new Audio("/sounds/1-4.mp3");
-      const drum5 = new Audio("/sounds/1-5.mp3");
-      const drum6 = new Audio("/sounds/1-6.mp3");
+      if (!audioRef.current) return;
 
-      const flute1 = new Audio("/sounds/2_1.mp3");
-      const flute2 = new Audio("/sounds/2-2.mp3");
-      const flute3 = new Audio("/sounds/2-3.mp3");
-      const flute4 = new Audio("/sounds/2-4mp3.mp3");
-      const flute5 = new Audio("/sounds/2-5..mp3");
-      const flute6 = new Audio("/sounds/2-6.mp3");
-
-      const git1 = new Audio("/sounds/3-1.mp3");
-      const git2 = new Audio("/sounds/3-2.mp3");
-      const git3 = new Audio("/sounds/3-3.mp3");
-      const git4 = new Audio("/sounds/3-4.mp3");
-      const git5 = new Audio("/sounds/3-5.mp3");
-      const git6 = new Audio("/sounds/3-6.mp3");
-
+      if (
+        currentBandPowerData[0] > powerThreshold1 &&
+        currentBandPowerData[1] > powerThreshold1 &&
+        currentBandPowerData[2] > powerThreshold1
+      ) {
+        playSound(0, audioRef.current.drum1);
+      } else if (
+        currentBandPowerData[0] > powerThreshold1 &&
+        currentBandPowerData[1] > powerThreshold1
+      ) {
+        playSound(0, audioRef.current.drum2);
+      } else if (
+        currentBandPowerData[0] > powerThreshold1 &&
+        currentBandPowerData[2] > powerThreshold1
+      ) {
+        playSound(0, audioRef.current.drum3);
+      } else if (
+        currentBandPowerData[1] > powerThreshold1 &&
+        currentBandPowerData[2] > powerThreshold1
+      ) {
+        playSound(0, audioRef.current.git6);
+      } else if (currentBandPowerData[0] > powerThreshold1) {
+        playSound(0, audioRef.current.git5);
+      } else if (currentBandPowerData[1] > powerThreshold1) {
+        playSound(0, audioRef.current.git4);
+      } else if (currentBandPowerData[2] > powerThreshold1) {
+        playSound(0, audioRef.current.flute6);
+      }
       currentBandPowerData.forEach((power, index) => {
         const x = index * barWidth + barSpacing / 2;
         const barX = x + (barWidth - barActualWidth) / 2; // Center the bars
@@ -393,11 +425,7 @@ const Websocket = () => {
         ctx.lineTo(infoBlockX + 2 * sectionWidth, infoBlockY + infoBlockH);
         ctx.stroke();
 
-        if (power > powerThreshold2) {
-          playSound(index, index === 0 ? drum2 : index === 1 ? flute4 : git6);
-        } else if (power > powerThreshold1) {
-          playSound(index, index === 0 ? drum1 : index === 1 ? flute3 : git5);
-        }
+    
         // Bar height based on power value
         const normalizedHeight = power;
         const actualBarHeight = Math.max(normalizedHeight * barH, 2); // Set minimum height
@@ -441,32 +469,41 @@ const Websocket = () => {
         ctx.textBaseline = "top";
 
         currentBandPowerData.forEach((_, index) => {
-          const barX = index * barWidth + barSpacing / 2 + (barWidth - barActualWidth) / 2; // Align bars correctly
-          const labelX = barX + barActualWidth / 2; // Center text under the bar
+          const barX = index * barWidth + barSpacing / 2 + (barWidth - barActualWidth) / 2;
+          const labelX = barX + barActualWidth / 2;
           const labelY = height - padding + 2;
-          const labelWidth = barActualWidth;
-          const labelHeight = 30;
-
-          // Draw background rectangle with border
+          const buttonSize = 15;
+        
+          // Draw label background
           ctx.fillStyle = theme === "dark" ? "#020817" : "#FFFFFF";
           ctx.beginPath();
-          ctx.roundRect(barX, labelY, labelWidth, labelHeight, [0, 0, 8, 8]); // Bottom corners rounded
+          ctx.roundRect(barX, labelY, barActualWidth, 30, [0, 0, 8, 8]);
           ctx.fill();
-
           ctx.strokeStyle = axisColor;
           ctx.lineWidth = 2;
           ctx.stroke();
-
-          // Draw text (Channel labels)
+        
+          // Draw text
           ctx.fillStyle = axisColor;
           ctx.textAlign = "center";
-          ctx.fillText(`Channel${index}`, labelX, labelY + labelHeight / 2 - 5);
+          ctx.fillText(`Channel${index}`, labelX, labelY + 15);
+        
+          // Draw "-" button
+          const minusX = labelX - 20;
+          const plusX = labelX + 10;
+          const buttonY = labelY + 10;
+          ctx.fillStyle = "#ff5252"; // Red for minus
+          ctx.fillRect(minusX, buttonY, buttonSize, buttonSize);
+          ctx.fillStyle = "#ffffff";
+          ctx.fillText("-", minusX + buttonSize / 2, buttonY + buttonSize - 5);
+        
+          // Draw "+" button
+          ctx.fillStyle = "#4caf50"; // Green for plus
+          ctx.fillRect(plusX, buttonY, buttonSize, buttonSize);
+          ctx.fillStyle = "#ffffff";
+          ctx.fillText("+", plusX + buttonSize / 2, buttonY + buttonSize - 5);
         });
-
-
       });
-
-
     },
     [theme, bandNames]
   );
@@ -801,64 +838,64 @@ const Websocket = () => {
     }
   }
 
-  const containerRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const [values, setValues] = useState(
-    [...Array(3)].map(() => ({ lower: 20, upper: 60 })) // Create an array for each div
-  );
-  const [activeSlider, setActiveSlider] = useState<string | null>(null);
+  // const containerRefs = useRef<(HTMLDivElement | null)[]>([]);
+  // const [values, setValues] = useState(
+  //   [...Array(3)].map(() => ({ lower: 20, upper: 60 })) // Create an array for each div
+  // );
+  // const [activeSlider, setActiveSlider] = useState<string | null>(null);
 
 
-  const getPercentage = (clientY: number, index: number) => {
-    const ref = containerRefs.current[index];
-    if (!ref) return 0;
-    const rect = ref.getBoundingClientRect();
-    let y = clientY - rect.top;
-    y = Math.max(0, Math.min(y, rect.height));
-    return (y / rect.height) * 100;
-  };
+  // const getPercentage = (clientY: number, index: number) => {
+  //   const ref = containerRefs.current[index];
+  //   if (!ref) return 0;
+  //   const rect = ref.getBoundingClientRect();
+  //   let y = clientY - rect.top;
+  //   y = Math.max(0, Math.min(y, rect.height));
+  //   return (y / rect.height) * 100;
+  // };
 
-  const handleMouseDown = (slider: "lower" | "upper", index: number) => () => {
-    setActiveSlider(`${slider}-${index}`);
-  };
+  // const handleMouseDown = (slider: "lower" | "upper", index: number) => () => {
+  //   setActiveSlider(`${slider}-${index}`);
+  // };
 
-  const handleMouseMove = (event: MouseEvent) => {
-    if (!activeSlider) return;
+  // const handleMouseMove = (event: MouseEvent) => {
+  //   if (!activeSlider) return;
 
-    const [slider, indexStr] = activeSlider.split("-");
-    const index = Number(indexStr);
-    if (isNaN(index)) return;
+  //   const [slider, indexStr] = activeSlider.split("-");
+  //   const index = Number(indexStr);
+  //   if (isNaN(index)) return;
 
-    const desired = getPercentage(event.clientY, index);
-    setValues(prevValues => {
-      return prevValues.map((val, i) => {
-        if (i === index) {
-          return {
-            lower: slider === "lower" ? Math.max(0, Math.min(desired, val.upper - 20)) : val.lower,
-            upper: slider === "upper" ? Math.min(100, Math.max(desired, val.lower + 20)) : val.upper,
-          };
-        }
-        return val;
-      });
-    });
-  };
+  //   const desired = getPercentage(event.clientY, index);
+  //   setValues(prevValues => {
+  //     return prevValues.map((val, i) => {
+  //       if (i === index) {
+  //         return {
+  //           lower: slider === "lower" ? Math.max(0, Math.min(desired, val.upper - 20)) : val.lower,
+  //           upper: slider === "upper" ? Math.min(100, Math.max(desired, val.lower + 20)) : val.upper,
+  //         };
+  //       }
+  //       return val;
+  //     });
+  //   });
+  // };
 
-  const handleMouseUp = () => {
-    setActiveSlider(null);
-  };
+  // const handleMouseUp = () => {
+  //   setActiveSlider(null);
+  // };
 
-  useEffect(() => {
-    if (activeSlider) {
-      window.addEventListener("mousemove", handleMouseMove);
-      window.addEventListener("mouseup", handleMouseUp);
-    } else {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
-    }
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
-    };
-  }, [activeSlider]);
+  // useEffect(() => {
+  //   if (activeSlider) {
+  //     window.addEventListener("mousemove", handleMouseMove);
+  //     window.addEventListener("mouseup", handleMouseUp);
+  //   } else {
+  //     window.removeEventListener("mousemove", handleMouseMove);
+  //     window.removeEventListener("mouseup", handleMouseUp);
+  //   }
+  //   return () => {
+  //     window.removeEventListener("mousemove", handleMouseMove);
+  //     window.removeEventListener("mouseup", handleMouseUp);
+  //   };
+  // }, [activeSlider]);
 
   return (
     <div className="flex flex-col h-screen m-0 p-0 bg-g ">
@@ -878,7 +915,7 @@ const Websocket = () => {
           <div className=" flex justify-center items-center">
             <div ref={containerRef} className="w-full h-full px-4 min-h-0 min-w-0">
               <canvas ref={canvasRef} className="w-full h-full" />
-              {[...Array(3)].map((_, index) => (
+              {/* {[...Array(3)].map((_, index) => (
                 <div
                   key={index}
                   ref={(el) => {
@@ -902,7 +939,7 @@ const Websocket = () => {
                     <div className="w-8 h-1 bg-white rounded" />
                   </div>
                 </div>
-              ))}
+              ))} */}
 
 
             </div>
