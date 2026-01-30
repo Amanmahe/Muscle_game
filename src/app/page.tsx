@@ -3,6 +3,7 @@ import React, {
   useEffect,
   useRef,
   useState,
+  useLayoutEffect,
   useMemo,
   useCallback,
 } from "react";
@@ -23,56 +24,36 @@ import {
 } from "@/components/ui/tooltip";
 import {
   CircleX,
-  CircleOff,
-  ReplaceAll,
-  Heart,
-  Brain,
-  Eye,
-  BicepsFlexed,
+  Settings,
   Loader
 } from "lucide-react";
 import { useTheme } from "next-themes";
 
-
 const Websocket = () => {
   // UI States for Popovers and Buttons
   const sampingrateref = useRef<number>(250);
-  const endTimeRef = useRef<number | null>(null); // Ref to store the end time of the recording
-  // Canvas Settings & Channels
-  const [isFilterPopoverOpen, setIsFilterPopoverOpen] = useState(false);
   // Buffer Management
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const dataPointCountRef = useRef<number>(2000); // To track the calculated value
   const sweepPositions = useRef<number[]>(new Array(6).fill(0)); // Array for sweep positions
   const currentSweepPos = useRef<number[]>(new Array(6).fill(0)); // Array for sweep positions
   const maxCanvasElementCountRef = useRef<number>(3);
-  const channelNames = Array.from({ length: maxCanvasElementCountRef.current }, (_, i) => `CH${i + 1}`);
   let numChannels = 3;
   const [selectedChannels, setSelectedChannels] = useState<number[]>([0, 1, 2]);
   const { theme } = useTheme(); // Current theme of the app
-  const isDarkModeEnabled = theme === "dark"; // Boolean to check if dark mode is enabled
   const [isConnected, setIsConnected] = useState(false);
-  const activeTheme: 'light' | 'dark' = isDarkModeEnabled ? 'dark' : 'light';
-  const [isAllEnabledChannelSelected, setIsAllEnabledChannelSelected] = useState(false);
-  const [isSelectAllDisabled, setIsSelectAllDisabled] = useState(false);
   const [isLoading, setIsLoading] = useState(false); // Track loading state for asynchronous operations
   const [open, setOpen] = useState(false);
   const selectedChannelsRef = useRef(selectedChannels);
   const [Zoom, SetZoom] = useState<number>(1); // Number of canvases
-  const [timeBase, setTimeBase] = useState<number>(10); // To track the current index to show
+  const [timeBase, setTimeBase] = useState<number>(4); // To track the current index to show
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const animationRef = useRef<number>();
-  const bandColors = useMemo(
-    () => ["red", "yellow", "green"],
-    []
-  );
   const bandNames = useMemo(
     () => ["CH0", "CH1", "CH2"],
     []
   );
-  const [powerThreshold1, setThreshold1] = useState(0.03);
-  const [powerThreshold2, setThreshold2] = useState(0.1);
   const [values, setValues] = useState<number[]>(
     Array.from({ length: 3 }, () => 0.03)
   );
@@ -89,11 +70,9 @@ const Websocket = () => {
     );
   };
 
-  ///
   const [bandPowerData, setBandPowerData] = useState<number[]>(
-    Array(3).fill(-100)
+    Array(3).fill(0)
   );
-  const NUM_POINTS = 2500; // Number of points per line
 
   const wglpRefs = useRef<WebglPlot[]>([]);
   const linesRefs = useRef<WebglLine[][]>([]); // Now it's an array of arrays
@@ -105,7 +84,8 @@ const Websocket = () => {
     }
     currentSweepPos.current = new Array(numChannels).fill(0);
     sweepPositions.current = new Array(numChannels).fill(0);
-
+    const dpCount = 500 * timeBase;
+    dataPointCountRef.current = dpCount;
     // Clear existing child elements
     while (container.firstChild) {
       const firstChild = container.firstChild;
@@ -154,7 +134,7 @@ const Websocket = () => {
     // Create canvasElements for each selected channel
     selectedChannels.forEach((channelNumber, index) => {
       const canvasWrapper = document.createElement("div");
-      canvasWrapper.className = "canvas-container relative flex-[1_1_0%]";
+      canvasWrapper.className = "canvas-container relative flex-[1_1_0%] ";
 
       const canvas = document.createElement("canvas");
       canvas.id = `canvas${channelNumber}`;
@@ -169,9 +149,8 @@ const Websocket = () => {
       canvasWrapper.appendChild(badge);
       canvasWrapper.appendChild(canvas);
       container.appendChild(canvasWrapper);
-
-      const wglp = new WebglPlot(canvas);
       if (!canvas) return;
+      const wglp = new WebglPlot(canvas);
 
       // Ensure linesRefs.current[index] is initialized as an array
       if (!linesRefs.current[index]) {
@@ -181,19 +160,19 @@ const Websocket = () => {
       wglpRefs.current[index] = wglp;
 
       // Define colors for two different data sets
-      const color1 = new ColorRGBA(120, 0, 0, 1); // Red (First data)
+      const color1 = new ColorRGBA(1, 0, 0, 1); // Red (First data)
       const color2 = new ColorRGBA(0, 1, 1, 1); // Cyan (Second data)
 
       // First data line
-      const line1 = new WebglLine(color1, NUM_POINTS);
-      line1.lineSpaceX(-1, 2 / NUM_POINTS);
+      const line1 = new WebglLine(color1, dpCount);
+      line1.lineSpaceX(-1, 2 / dpCount);
       wglp.addLine(line1);
 
       // Second data line
-      const line2 = new WebglLine(color2, NUM_POINTS);
-      line2.lineSpaceX(-1, 2 / NUM_POINTS);
+      const line2 = new WebglLine(color2, dpCount);
+      line2.lineSpaceX(-1, 2 / dpCount);
       wglp.addLine(line2);
-
+      wglp.gScaleY = Zoom;
       // Store references
       linesRefs.current[index][0] = line1;
       linesRefs.current[index][1] = line2;
@@ -207,6 +186,23 @@ const Websocket = () => {
     });
   }
 
+  useLayoutEffect(() => {
+    if (!containerRef.current) return;
+    const ro = new ResizeObserver(() => {
+      createCanvasElements();
+      rebuildInfoBoxes();   // <-- whatever your right-hand sizing fn is
+
+      function rebuildInfoBoxes() {
+        console.log("Rebuilding info boxes...");
+      }
+    });
+    ro.observe(containerRef.current);
+    return () => ro.disconnect();
+  }, [
+    theme,
+    timeBase,
+    selectedChannels,
+  ]);
   useEffect(() => {
     createCanvasElements();
   }, [numChannels, theme, timeBase, selectedChannels]);
@@ -221,9 +217,24 @@ const Websocket = () => {
     };
   }, [createCanvasElements]);
 
-  const updateData = (newData: number[], evn: number[]) => {
+  const updateData = useCallback((newData: number[], evn: number[]) => {
     if (!linesRefs.current.length) return;
-
+    // Adjust zoom level for each WebglPlot
+    wglpRefs.current.forEach((wglp, index) => {
+      if (wglp) {
+        try {
+          wglp.gScaleY = zoomRef.current; // Adjust zoom value
+        } catch (error) {
+          console.error(
+            `Error setting gScaleY for WebglPlot instance at index ${index}:`,
+            error
+          );
+        }
+      } else {
+        console.warn(`WebglPlot instance at index ${index} is undefined.`);
+      }
+    });
+    console.log(dataPointCountRef.current);
     linesRefs.current.forEach((line, i) => {
       const line1 = linesRefs.current[i][0]; // First dataset
       const line2 = linesRefs.current[i][1]; // Second dataset
@@ -267,11 +278,12 @@ const Websocket = () => {
       // ✅ **Increment the sweep position**
       sweepPositions.current[i] = (currentPos + 1) % line1.numPoints;
     });
-  };
+  }, [linesRefs, wglpRefs, selectedChannelsRef, dataPointCountRef, dataPointCountRef.current, sweepPositions, timeBase]
+  );
 
-  const powerBuffer = useRef<number[][]>(bandNames.map(() => []));
+  const powerBuffer = useRef<number[][]>(bandNames.map(() => [0]));
   const playedSounds = new Set<number>();
-  
+
   function playSound(index: number, sound: HTMLAudioElement) {
     if (!playedSounds.has(index)) {
       sound.play();
@@ -304,226 +316,306 @@ const Websocket = () => {
       git6: new Audio("./sounds/3-5.mp3"),
     };
   }, []);
+
+
   const drawGraph = useCallback(
-    (currentBandPowerData: number[]) => {
+    (data: number[]) => {
       const canvas = canvasRef.current;
       const container = containerRef.current;
       if (!canvas || !container) return;
+      if (data.some(isNaN)) return;
 
-      if (currentBandPowerData.some(isNaN)) {
-        console.error("NaN values detected in band power data");
-        return;
+      // Responsive sizing + DPR - Force layout recalculation
+      container.style.display = 'block'; // Force layout recalculation
+      const { width: cssW, height: cssH } = container.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+
+
+      if (canvas.width !== Math.floor(cssW * dpr) || canvas.height !== Math.floor(cssH * dpr)) {
+        canvas.width = Math.floor(cssW * dpr);
+        canvas.height = Math.floor(cssH * dpr);
+        canvas.style.width = `${cssW}px`;
+        canvas.style.height = `${cssH}px`;
       }
 
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
+      ctx.setTransform(1, 0, 0, 1, 0, 0); // reset any previous transform
+      ctx.scale(dpr, dpr); // only scale once here!
 
-      // Set canvas size to fit container
-      canvas.width = container.clientWidth;
-      canvas.height = container.clientHeight;
+      // For high zoom levels, we artificially constrain the effective width
+      const shrinkExp = 0.1;               // try 0.5–0.9
+      const shrinkFactor = Math.pow(dpr, shrinkExp);
 
-      const width = canvas.width;
-      const height = canvas.height;
-      ctx.clearRect(0, 0, width, height);
+      const W = cssW;
+      const H = cssH;
 
-      const padding = 35; // Reduce padding to maximize space usage
-      const barAreaHeight = height * 0.87;
-      const infoBlockHeight = height * 0.08;
-      const barWidth = width / bandNames.length; // Make bars take full width
-      const barSpacing = barWidth * 0.1; // Adjust spacing between bars
-      const barActualWidth = barWidth * 0.8; // Increase bar width
+      // Calculate scale based on effective width
+      const scale = W / 800;
 
-      const axisColor = theme === "dark" ? "white" : "black";
-      const borderRadius = 8;
+      const padding = 5 * scale;
+      const axisGap = Math.max(1 * scale, 1);
 
-      currentBandPowerData.forEach((power, index) => {
-        if (isNaN(power) || !isFinite(power)) return;
-        if (powerBuffer.current[index].length >= 500) {
-          powerBuffer.current[index].shift();
-        }
-        powerBuffer.current[index].push(power);
-      });
-      if (!audioRef.current) return;
+
+      const barCount = data.length;
+
+      // === explicit vertical partitioning ===
+      const totalAvailH = H - padding * 2 + 60;
+      const middlePct = dpr < 1.5 ? 0.70 : 0.71;
+      const edgePct = (1 - middlePct) / 5;
+
+
+      // Calculate bar width with safety margins
+      const availableWidth = W - (padding * 2);
+      const barPaddingFactor = 0.12;
+      const barSpace = availableWidth * barPaddingFactor / barCount;
+      const barActW = availableWidth / barCount - barSpace;
+
+
+      // Fixed height for your top info and bottom labels
+      let infoH = 50 * scale;   // tweak to how tall your info block must be
+      let labelBoxH = 40 * scale;   // tweak to label box height
+
+      // Full drawable height for bars
+      const barAreaH = H - padding * 2 - infoH - labelBoxH - axisGap * 9;
+
+
+      // ** Boost top info height slightly when zoom <150% **
+      if (dpr < 2) {
+        infoH *= 1.2;
+      }
+
+      const fontMain = infoH * 0.3;
+      const fontLabel = Math.max(infoH * 0.3, 14 * scale);
+
+      if (H < 600) {
+        infoH *= 0.8;
+        labelBoxH *= 0.8;
+      }
+
+      const axisColor = theme === "dark" ? "#fff" : "#000";
+      const bgColor = theme === "dark" ? "#020817" : "#fff";
+      const radius = 15 * scale;
 
       if (
-        currentBandPowerData[0] > values[0] &&
-        currentBandPowerData[1] > values[1] &&
-        currentBandPowerData[2] > values[2]
+        data[0] > values[0] &&
+        data[1] > values[1] &&
+        data[2] > values[2]
       ) {
         playSound(1, audioRef.current.drum1);
       }
       if (
-        currentBandPowerData[0] > values[0] &&
-        currentBandPowerData[1] > values[1]
+        data[0] > values[0] &&
+        data[1] > values[1]
       ) {
         playSound(2, audioRef.current.drum2);
       }
       if (
-        currentBandPowerData[0] > values[0] &&
-        currentBandPowerData[2] > values[2]
+        data[0] > values[0] &&
+        data[2] > values[2]
       ) {
         playSound(3, audioRef.current.drum3);
       }
       if (
-        currentBandPowerData[1] > values[1] &&
-        currentBandPowerData[2] > values[2]
+        data[1] > values[1] &&
+        data[2] > values[2]
       ) {
         playSound(4, audioRef.current.git6);
       }
-      if (currentBandPowerData[0] > values[0]) {
+      if (data[0] > values[0]) {
         playSound(5, audioRef.current.drum5);
       }
-      if (currentBandPowerData[1] > values[1]) {
+      if (data[1] > values[1]) {
         playSound(6, audioRef.current.git2);
       }
-      if (currentBandPowerData[2] > values[2]) {
+      if (data[2] > values[2]) {
         playSound(7, audioRef.current.git5);
       }
-      currentBandPowerData.forEach((power, index) => {
-        const x = index * barWidth + barSpacing / 2;
-        const barX = x + (barWidth - barActualWidth) / 2; // Center the bars
-        const barY = height - barAreaHeight - padding;
-        const barH = barAreaHeight;
-        const history = powerBuffer.current[index];
+      // Update buffer
+      data.forEach((v, i) => {
+        const buf = powerBuffer.current[i];
+        if (buf.length >= 500) buf.shift();
+        buf.push(v);
+      });
 
-        let previousMaxPower = 0; // Initialize with a small value
+      // Draw bars and info blocks
+      data.forEach((v, i) => {
+        let adjustedBarPosition;
+        if (dpr > 1.1) {
+          const totalBarsWidth = barCount * (barActW + barSpace);
+          const leftMargin = Math.max(0, (cssW - totalBarsWidth) / 2);
+          adjustedBarPosition = leftMargin + i * (barActW + barSpace);
+        } else {
+          adjustedBarPosition = padding + i * (barActW + barSpace);
 
-        const maxPower = Math.max(...history);
 
-        if (maxPower > previousMaxPower) {
-          previousMaxPower = maxPower; // Update the stored max value
         }
-        let previousMinPower = 0; // Initialize with a small value
+        // Power buffer
+        const buf = powerBuffer.current[i];
+        if (buf.length >= 500) buf.shift();
+        buf.push(v);
 
-        const minPower = Math.min(...history);
+        const x0 = Math.min(adjustedBarPosition, cssW - padding - barActW);
 
-        if (minPower < previousMinPower) {
-          previousMaxPower = maxPower; // Update the stored max value
-        }
-        const avgPower = history.reduce((a, b) => a + b, 0) / history.length;
-        // Info Block above bars
-        const infoBlockX = barX;
-        const infoBlockY = barY - infoBlockHeight;
-        const infoBlockW = barActualWidth;
-        const infoBlockH = infoBlockHeight;
-        const sectionWidth = infoBlockW / 3; // Divide into 3 equal sections
 
-        // Draw the full info block
-        ctx.fillStyle = theme === "dark" ? "#020817" : "#FFFFFF";
+        // Info block
+        ctx.fillStyle = bgColor;
         ctx.beginPath();
-        ctx.roundRect(infoBlockX, infoBlockY, infoBlockW, infoBlockH, [borderRadius, borderRadius, 0, 0]);
+        // round only the two top corners:
+        ctx.roundRect(x0, padding, barActW, infoH, [radius, radius, 0, 0]);
         ctx.fill();
-        ctx.strokeStyle = axisColor;
-        ctx.lineWidth = 2;
         ctx.stroke();
 
-        // Section-wise text alignment
-        const section1X = infoBlockX + sectionWidth / 2; // Left section (Max Power)
-        const section2X = infoBlockX + sectionWidth + sectionWidth / 2; // Middle section (Avg Power)
-        const section3X = infoBlockX + 2 * sectionWidth + sectionWidth / 2; // Right section (Min Power)
-
-        ctx.fillStyle = axisColor;
-        ctx.font = `${20 * (canvas.width / 800)}px bold Arial`;
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-
-        // Draw text in three sections
-        ctx.fillText(`▲ `, section1X, (infoBlockY + infoBlockH / 2) - 8);
-        ctx.fillText(`~ `, section2X, (infoBlockY + infoBlockH / 2) - 8);
-        ctx.fillText(`▼ `, section3X, (infoBlockY + infoBlockH / 2) - 8);
-
-        ctx.fillText(`${Math.abs(maxPower).toFixed(2)}`, section1X, (infoBlockY + infoBlockH / 2) + 15);
-        ctx.fillText(`${Math.abs(avgPower).toFixed(2)}`, section2X, (infoBlockY + infoBlockH / 2) + 15);
-        ctx.fillText(`${Math.abs(minPower).toFixed(2)}`, section3X, (infoBlockY + infoBlockH / 2) + 15);
-
-        // Optional: Draw vertical dividers between sections
         ctx.strokeStyle = axisColor;
         ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(infoBlockX + sectionWidth, infoBlockY);
-        ctx.lineTo(infoBlockX + sectionWidth, infoBlockY + infoBlockH);
-        ctx.moveTo(infoBlockX + 2 * sectionWidth, infoBlockY);
-        ctx.lineTo(infoBlockX + 2 * sectionWidth, infoBlockY + infoBlockH);
         ctx.stroke();
 
-    
-        // Bar height based on power value
-        const normalizedHeight = power;
-        const actualBarHeight = Math.max(normalizedHeight * barH, 2); // Set minimum height
-
-        // Gradient color based on height
-        const gradient = ctx.createLinearGradient(barX, barY + barH, barX, barY + barH - actualBarHeight);
-        const oneThird = barH / 3;
-        const twoThirds = (2 * barH) / 3;
-
-        if (actualBarHeight <= oneThird) {
-          gradient.addColorStop(0, "green");
-          gradient.addColorStop(1, "green");
-        } else if (actualBarHeight <= twoThirds) {
-          gradient.addColorStop(0, "green");
-          gradient.addColorStop(oneThird / actualBarHeight, "green");
-          gradient.addColorStop(1, "yellow");
-        } else {
-          gradient.addColorStop(0, "green");
-          gradient.addColorStop(oneThird / actualBarHeight, "green");
-          gradient.addColorStop(twoThirds / actualBarHeight, "yellow");
-          gradient.addColorStop(1, "red");
-        }
-        // Background block for bars
-        ctx.fillStyle = theme === "dark" ? "#020817" : "#FFFFFF";
-        ctx.beginPath();
-        ctx.roundRect(barX, barY, barActualWidth, barH, [0, 0, 0, 0]);
-        ctx.fill();
-        ctx.strokeStyle = axisColor;
-        ctx.lineWidth = 2;
-        ctx.stroke();
-
-        // Actual Bar with gradient
-        ctx.fillStyle = gradient;
-        ctx.beginPath();
-        ctx.roundRect(barX, barY + barH - actualBarHeight, barActualWidth, actualBarHeight, [0, 0, 0, 0]);
-        ctx.fill();
-        // X-Axis Labels (Centered under bars)
+        // Info text
         ctx.fillStyle = axisColor;
-        ctx.font = "14px Arial";
         ctx.textAlign = "center";
-        ctx.textBaseline = "top";
-        const clickableAreas: { x: number; y: number; width: number; height: number; type: string; index: number }[] = [];
+        ctx.textBaseline = "middle";
+        ctx.font = `${fontMain}px Arial`;
 
-        currentBandPowerData.forEach((_, index) => {
-          const barX = index * barWidth + barSpacing / 2 + (barWidth - barActualWidth) / 2; // Align bars correctly
-          const labelX = barX + barActualWidth / 2; // Center text under the bar
-          const labelY = height - padding + 2;
-          const labelWidth = barActualWidth;
-          const labelHeight = 30;
-        
-          // Draw background rectangle with border
-          ctx.fillStyle = theme === "dark" ? "#020817" : "#FFFFFF";
-          ctx.beginPath();
-          ctx.roundRect(barX, labelY, labelWidth, labelHeight, [0, 0, 8, 8]); // Bottom corners rounded
-          ctx.fill();
-        
-          ctx.strokeStyle = axisColor;
-          ctx.lineWidth = 2;
-          ctx.stroke();
-      
-          ctx.fillStyle = axisColor;
-          ctx.textAlign = "center";
-          ctx.fillText(`Channel${index}`, labelX, labelY + labelHeight / 2 - 5);
-   
-        
-        });
-        
-      
+        // Show only the current value
+        ctx.fillStyle = axisColor;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.font = `${fontMain}px Arial`;
+
+        const cx = x0 + barActW / 2;
+        ctx.fillText("Current Value", cx, padding + infoH * 0.3);
+        ctx.fillText(v.toFixed(2), cx, padding + infoH * 0.7);
+
 
       });
 
+      // Draw bar backgrounds and bars
+      data.forEach((v, i) => {
+        let adjustedBarPosition;
+        if (dpr > 1.1) {
+          const totalBarsWidth = barCount * (barActW + barSpace);
+          const leftMargin = Math.max(0, (W - totalBarsWidth) / 2);
+          adjustedBarPosition = leftMargin + i * (barActW + barSpace);
+        } else {
+          adjustedBarPosition = padding + i * (barActW + barSpace);
+        }
 
+        const x0 = Math.min(adjustedBarPosition, W - padding - barActW);
+        const hist = powerBuffer.current[i];
+        const mx = Math.max(...hist, 0);
+        const barY = padding + infoH + axisGap;
+
+        ctx.fillStyle = bgColor;
+        ctx.beginPath();
+        ctx.roundRect(
+          x0,
+          padding + infoH + axisGap,
+          barActW,
+          barAreaH
+        );
+        ctx.fill();
+        ctx.stroke();
+
+        // Actual bar
+        const normH = (v / Math.max(mx, 1)) * barAreaH;
+        // 2️⃣ Draw the filled bar, scaled to barAreaH
+        const max = Math.max(...powerBuffer.current[i], 1);
+        const bh = (v / max) * barAreaH;
+        const barTopY = padding + infoH + axisGap + (barAreaH - bh);
+
+
+        const grad = ctx.createLinearGradient(x0, barY + barAreaH, x0, barY + barAreaH - bh);
+        const one3 = barAreaH / 3;
+        const two3 = one3 * 2;
+
+        if (bh <= one3) {
+          grad.addColorStop(0, "green");
+          grad.addColorStop(1, "green");
+        } else if (bh <= two3) {
+          grad.addColorStop(0, "green");
+          grad.addColorStop(one3 / bh, "green");
+          grad.addColorStop(1, "yellow");
+        } else {
+          grad.addColorStop(0, "green");
+          grad.addColorStop(one3 / bh, "green");
+          grad.addColorStop(two3 / bh, "yellow");
+          grad.addColorStop(1, "red");
+        }
+
+        // (Recreate your gradient here if you like)
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.roundRect(
+          x0,
+          barTopY,
+          barActW,
+          bh
+        );
+        ctx.fill();
+      });
+
+      // X-axis labels
+      data.forEach((_, i) => {
+        const totalBarsWidth = barCount * (barActW + barSpace);
+        const leftMargin = Math.max(0, (W - totalBarsWidth) / 2);
+        const adjustedBarPosition = leftMargin + i * (barActW + barSpace);
+        const x0 = Math.min(adjustedBarPosition, W - padding - barActW);
+
+        const labelX = x0 + barActW / 2;
+        const barY = padding + infoH + axisGap;
+        const labelY = barY + barAreaH + axisGap;
+
+        ctx.fillStyle = bgColor;
+        ctx.beginPath();
+        ctx.roundRect(labelX - barActW / 2, labelY, barActW, labelBoxH, [0, 0, radius / 2, radius / 2]);
+        ctx.fill();
+        ctx.strokeStyle = axisColor;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        ctx.fillStyle = axisColor;
+        ctx.font = `${fontLabel}px Arial`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(bandNames[i], labelX, labelY + fontLabel);
+      });
     },
-    [theme, bandNames,values]
+    [theme, bandNames, values]
   );
 
+  // Add improved resize handling
+  useEffect(() => {
+    const handleResize = () => {
+      if (canvasRef.current && containerRef.current) {
+        // Force redraw on resize
+        drawGraph(bandPowerData);
+      }
+    };
 
+    // Handle zoom changes
+    let currentDpr = window.devicePixelRatio || 1;
+    const handleZoom = () => {
+      const newDpr = window.devicePixelRatio || 1;
+      if (newDpr !== currentDpr) {
+        currentDpr = newDpr;
+        if (canvasRef.current && containerRef.current) {
+          drawGraph(bandPowerData);
+        }
+      }
+    };
+
+    window.addEventListener("resize", handleResize);
+    window.addEventListener("zoom", handleZoom);
+
+    // Check for zoom changes periodically
+    const zoomCheckInterval = setInterval(handleZoom, 1000);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      window.removeEventListener("zoom", handleZoom);
+      clearInterval(zoomCheckInterval);
+    };
+  }, [drawGraph, bandPowerData]);
   const prevBandPowerData = useRef<number[]>(Array(3).fill(0));
 
   const animateGraph = useCallback(() => {
@@ -566,60 +658,11 @@ const Websocket = () => {
   useEffect(() => {
     selectedChannelsRef.current = selectedChannels;
   }, [selectedChannels]);
-
-  let activeBufferIndex = 0;
-  //filters
   const appliedFiltersRef = React.useRef<{ [key: number]: number }>({});
   const appliedEXGFiltersRef = React.useRef<{ [key: number]: number }>({});
   const [, forceUpdate] = React.useReducer((x) => x + 1, 0);
   const [, forceEXGUpdate] = React.useReducer((x) => x + 1, 0);
 
-  const removeEXGFilter = (channelIndex: number) => {
-    delete appliedEXGFiltersRef.current[channelIndex]; // Remove the filter for the channel
-    forceEXGUpdate(); // Trigger re-render
-
-  };
-
-  // Function to handle frequency selection
-  const handleFrequencySelectionEXG = (channelIndex: number, frequency: number) => {
-    appliedEXGFiltersRef.current[channelIndex] = frequency; // Update the filter for the channel
-    forceEXGUpdate(); //Trigger re-render
-
-  };
-
-  // Function to set the same filter for all channels
-  const applyEXGFilterToAllChannels = (channels: number[], frequency: number) => {
-    channels.forEach((channelIndex) => {
-      appliedEXGFiltersRef.current[channelIndex] = frequency; // Set the filter for the channel
-    });
-    forceEXGUpdate(); // Trigger re-render
-
-  };
-  // Function to remove the filter for all channels
-  const removeEXGFilterFromAllChannels = (channels: number[]) => {
-    channels.forEach((channelIndex) => {
-      delete appliedEXGFiltersRef.current[channelIndex]; // Remove the filter for the channel
-    });
-    forceEXGUpdate(); // Trigger re-render
-
-  };
-  const removeNotchFilter = (channelIndex: number) => {
-    delete appliedFiltersRef.current[channelIndex]; // Remove the filter for the channel
-    forceUpdate(); // Trigger re-render
-  };
-  // Function to handle frequency selection
-  const handleFrequencySelection = (channelIndex: number, frequency: number) => {
-    appliedFiltersRef.current[channelIndex] = frequency; // Update the filter for the channel
-    forceUpdate(); //Trigger re-render
-  };
-
-  // Function to set the same filter for all channels
-  const applyFilterToAllChannels = (channels: number[], frequency: number) => {
-    channels.forEach((channelIndex) => {
-      appliedFiltersRef.current[channelIndex] = frequency; // Set the filter for the channel
-    });
-    forceUpdate(); // Trigger re-render
-  };
 
   // Function to remove the filter for all channels
   const removeNotchFromAllChannels = (channels: number[]) => {
@@ -630,6 +673,7 @@ const Websocket = () => {
   };
   useEffect(() => {
     dataPointCountRef.current = (sampingrateref.current * timeBase);
+    console.log(dataPointCountRef.current, timeBase);
   }, [timeBase]);
   const zoomRef = useRef(Zoom);
 
@@ -687,8 +731,8 @@ const Websocket = () => {
       const sample = dataView.getInt16(1 + (channel * 2), false);;
       channelData.push(
         notchFilters[channel].process(
-          EXGFilters[channel].process(sample, appliedEXGFiltersRef.current[channel]),
-          appliedFiltersRef.current[channel]
+          EXGFilters[channel].process(sample, 4),
+          1
         )
       );
     }
@@ -696,10 +740,7 @@ const Websocket = () => {
     const env2 = envelope2.getEnvelope(Math.abs(channelData[2]));
     const env3 = envelope3.getEnvelope(Math.abs(channelData[3]));
     updateData(channelData, [env1, env2, env3]);
-
     setBandPowerData([env1, env2, env3]);
-
-
     channelData = [];
     envData = [];
     samplesReceived++;
@@ -859,47 +900,28 @@ const Websocket = () => {
       <div className="bg-highlight">
         <Navbar isDisplay={true} />
       </div>
-      <div className="flex flex-row  flex-[1_1_0%] min-h-80 rounded-2xl m-4 relative">
-        {/* Left half - Charts */}
-        <main className="flex flex-row w-2/3  min-h-80 bg-highlight rounded-2xl m-4 relative">
-          <div className="w-full flex-row  min-h-80 bg-highlight rounded-2xl relative"
+      <div className="flex flex-row flex-1 overflow-auto  relative">
+        {/* Left Panel */}
+        <main className="w-2/3 m-3 relative flex  bg-highlight rounded-2xl ">
+
+          <div
             ref={canvasContainerRef}
-          >
-          </div>
+            className="absolute inset-0  rounded-2xl "
+          />
         </main>
-        {/* Left half - Charts */}
-        <main className="flex flex-row  w-1/3  min-h-80 rounded-2xl m-4 relative">
-          <div className=" flex justify-center items-center">
-            <div ref={containerRef} className="w-full h-full px-4 min-h-0 min-w-0">
-              <canvas ref={canvasRef} className="w-full h-full" />
-              {/* {[...Array(3)].map((_, index) => (
-                <div
-                  key={index}
-                  ref={(el) => {
-                    containerRefs.current[index] = el;
-                  }}
-                  className="absolute  w-16 h-96 ml-24 bg-transparent"
-                  style={{ top: `${280}px`, left: `${index * 190}px` }}
-                >
-                  <div
-                    className="absolute left-[-25px] right-[-25px] h-5 bg-gray-600 cursor-ns-resize rounded-md flex justify-center items-center"
-                    style={{ top: `${values[index].lower}%` }}
-                    onMouseDown={handleMouseDown("lower", index)}
-                  >
-                    <div className="w-8 h-1 bg-white rounded" />
-                  </div>
-                  <div
-                    className="absolute left-[-25px] right-[-25px] h-5 bg-gray-600 cursor-ns-resize rounded-md flex justify-center items-center"
-                    style={{ top: `${values[index].upper}%` }}
-                    onMouseDown={handleMouseDown("upper", index)}
-                  >
-                    <div className="w-8 h-1 bg-white rounded" />
-                  </div>
-                </div>
-              ))} */}
 
 
-            </div>
+        {/* Right Panel */}
+        <main className="w-1/3 m-3 relative flex overflow-hidden">
+          <div
+            ref={containerRef}
+            className="absolute inset-0  rounded-2xl"
+
+          >
+            <canvas
+              ref={canvasRef}
+              className="w-full h-full"
+            />
           </div>
         </main>
       </div>
@@ -932,7 +954,7 @@ const Websocket = () => {
                         </>
                       ) : (
                         <>
-Connect                        </>
+                          Connect                        </>
                       )}
                     </Button>
                   </PopoverTrigger>
@@ -944,231 +966,132 @@ Connect                        </>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
-
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Popover open={open} onOpenChange={setOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      className="flex items-center gap-1 py-2 px-4 rounded-xl font-semibold"
-                    >
-                  Settings
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-50 p-4 mx-4 mb-2">
-      <div className="flex flex-col max-h-80 overflow-y-auto">
-        <div className="flex items-center pb-2">
-          <div className="flex space-x-2">
-            {values.map((value, index) => (
-              <div
-                key={index}
-                className="flex border border-input rounded-xl items-center mx-0 px-0"
-              >
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => decrementValue(index)}
-                  className={`rounded-xl rounded-r-none border-0 ${
-                    value === 0
-                      ? "bg-red-700 hover:bg-white-500 hover:text-white text-white"
-                      : "bg-white-500"
-                  }`}
-                >
-                  -
-                </Button>
-
-                <span className="px-2">{value.toFixed(2)}</span>
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => incrementValue(index)}
-                  className={`rounded-xl rounded-l-none border-0 ${
-                    value === 1
-                      ? "bg-green-700 hover:bg-white-500 text-white hover:text-white"
-                      : "bg-white-500"
-                  }`}
-                >
-                  +
-                </Button>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </PopoverContent>
-                </Popover>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>{isConnected ? "Disconnect Device" : "Connect Device"}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-
-          {/* filters */}
-          <Popover
-            open={isFilterPopoverOpen}
-            onOpenChange={setIsFilterPopoverOpen}
-          >
+          <Popover>
             <PopoverTrigger asChild>
-              <Button
-                className="flex items-center justify-center px-3 py-2 select-none min-w-12 whitespace-nowrap rounded-xl"
-              >
-                Filter
+              <Button className="flex items-center justify-center select-none whitespace-nowrap rounded-lg">
+                <Settings size={16} />
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-50 p-4 mx-4 mb-2">
-              <div className="flex flex-col max-h-80 overflow-y-auto">
-                <div className="flex items-center pb-2 ">
-                  {/* Filter Name */}
-                  <div className="text-sm font-semibold w-12"><ReplaceAll size={20} /></div>
-                  {/* Buttons */}
-                  <div className="flex space-x-2">
-                    <div className="flex items-center border border-input rounded-xl mx-0 px-0">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => removeEXGFilterFromAllChannels(Array.from({ length: maxCanvasElementCountRef.current }, (_, i) => i))}
-                        className={`rounded-xl rounded-r-none border-0
-                        ${Object.keys(appliedEXGFiltersRef.current).length === 0
-                            ? "bg-red-700 hover:bg-white-500 hover:text-white text-white" // Disabled background
-                            : "bg-white-500" // Active background
-                          }`}
-                      >
-                        <CircleOff size={17} />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => applyEXGFilterToAllChannels(Array.from({ length: maxCanvasElementCountRef.current }, (_, i) => i), 4)}
-                        className={`flex items-center justify-center px-3 py-2 rounded-none select-none border-0
-                        ${Object.keys(appliedEXGFiltersRef.current).length === maxCanvasElementCountRef.current && Object.values(appliedEXGFiltersRef.current).every((value) => value === 4)
-                            ? "bg-green-700 hover:bg-white-500 text-white hover:text-white" // Disabled background
-                            : "bg-white-500" // Active background
-                          }`}
-                      >
-                        <BicepsFlexed size={17} />
-                      </Button> 
+            <PopoverContent className="w-[30rem] p-4 rounded-md shadow-md text-sm">
+              <TooltipProvider>
+                <div className={`space-y-6 "flex justify-center" `}>
+                  <div className="flex flex-col max-h-80 overflow-y-auto  justify-center items-center">
+                    <div className="flex items-center pb-2">
+                      <div className="flex space-x-2">
+                        {values.map((value, index) => (
+                          <div
+                            key={index}
+                            className="flex border border-input rounded-xl items-center mx-0 px-0"
+                          >
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => decrementValue(index)}
+                              className={`rounded-xl rounded-r-none border-0 ${value === 0
+                                ? "bg-red-700 hover:bg-white-500 hover:text-white text-white"
+                                : "bg-white-500"
+                                }`}
+                            >
+                              -
+                            </Button>
+
+                            <span className="px-2">{value.toFixed(2)}</span>
+
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => incrementValue(index)}
+                              className={`rounded-xl rounded-l-none border-0 ${value === 1
+                                ? "bg-green-700 hover:bg-white-500 text-white hover:text-white"
+                                : "bg-white-500"
+                                }`}
+                            >
+                              +
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <div className="flex border border-input rounded-xl items-center mx-0 px-0">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => removeNotchFromAllChannels(Array.from({ length: maxCanvasElementCountRef.current }, (_, i) => i))}
-                        className={`rounded-xl rounded-r-none border-0
-                          ${Object.keys(appliedFiltersRef.current).length === 0
-                            ? "bg-red-700 hover:bg-white-500 hover:text-white text-white" // Disabled background
-                            : "bg-white-500" // Active background
-                          }`}
+                  </div>
+
+                  {/* Zoom Controls */}
+                  <div className={`relative w-full flex flex-col items-start text-sm mt-3`}>
+                    <p className="absolute top-[-1.2rem] left-0 text-xs font-semibold text-gray-500">
+                      <span className="font-bold text-gray-600">Zoom Level:</span> {Zoom}x
+                    </p>
+                    <div className="relative w-[28rem] flex items-center rounded-lg py-2 border border-gray-300 dark:border-gray-600 mb-4">
+                      {/* Button for setting Zoom to 1 */}
+                      <button
+                        className="text-gray-700 dark:text-gray-400 mx-1 px-2 py-1 border rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+                        onClick={() => SetZoom(1)}
                       >
-                        <CircleOff size={17} />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => applyFilterToAllChannels(Array.from({ length: maxCanvasElementCountRef.current }, (_, i) => i), 1)}
-                        className={`flex items-center justify-center px-3 py-2 rounded-none select-none border-0
-                          ${Object.keys(appliedFiltersRef.current).length === maxCanvasElementCountRef.current && Object.values(appliedFiltersRef.current).every((value) => value === 1)
-                            ? "bg-green-700 hover:bg-white-500 text-white hover:text-white" // Disabled background
-                            : "bg-white-500" // Active background
-                          }`}
+                        1
+                      </button>
+
+                      <input
+                        type="range"
+                        min="1"
+                        max="10"
+                        value={Zoom}
+                        onChange={(e) => SetZoom(Number(e.target.value))}
+                        style={{
+                          background: `linear-gradient(to right, rgb(101, 136, 205) ${((Zoom - 1) / 9) * 100}%, rgb(165, 165, 165) ${((Zoom - 1) / 9) * 11}%)`,
+                        }}
+                        className="flex-1 h-[0.15rem] rounded-full appearance-none bg-gray-800 focus:outline-none focus:ring-0 slider-input"
+                      />
+
+                      {/* Button for setting Zoom to 10 */}
+                      <button
+                        className="text-gray-700 dark:text-gray-400 mx-2 px-2 py-1 border rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+                        onClick={() => SetZoom(10)}
                       >
-                        50Hz
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => applyFilterToAllChannels(Array.from({ length: maxCanvasElementCountRef.current }, (_, i) => i), 2)}
-                        className={`rounded-xl rounded-l-none border-0
-                          ${Object.keys(appliedFiltersRef.current).length === maxCanvasElementCountRef.current && Object.values(appliedFiltersRef.current).every((value) => value === 2)
-                            ? "bg-green-700 hover:bg-white-500 text-white hover:text-white" // Disabled background
-                            : "bg-white-500" // Active background
-                          }`}
+                        10
+                      </button>
+                      <style jsx>{` input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 15px; height: 15px;
+                                                                 background-color: rgb(101, 136, 205); border-radius: 50%; cursor: pointer; } `}</style>
+                    </div>
+                  </div>
+
+                  {/* Time-Base Selection */}
+                  <div className="relative w-full flex flex-col items-start mt-3 text-sm">
+                    <p className="absolute top-[-1.2rem] left-0 text-xs font-semibold text-gray-500">
+                      <span className="font-bold text-gray-600">Time Base:</span> {timeBase} Seconds
+                    </p>
+                    <div className="relative w-[28rem] flex items-center rounded-lg py-2 border border-gray-300 dark:border-gray-600">
+                      {/* Button for setting Time Base to 1 */}
+                      <button
+                        type="button"
+                        className="text-gray-700 dark:text-gray-400 mx-1 px-2 py-1 border rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+                        onClick={() => setTimeBase(1)}
                       >
-                        60Hz
-                      </Button>
+                        1
+                      </button>
+                      <input
+                        type="range"
+                        min="1"
+                        max="10"
+                        value={timeBase}
+                        onChange={(e) => setTimeBase(Number(e.target.value))}
+                        style={{
+                          background: `linear-gradient(to right, rgb(101, 136, 205) ${((timeBase - 1) / 9) * 100}%, rgb(165, 165, 165) ${((timeBase - 1) / 9) * 11}%)`,
+                        }}
+                        className="flex-1 h-[0.15rem] rounded-full appearance-none bg-gray-200 focus:outline-none focus:ring-0 slider-input"
+                      />
+                      {/* Button for setting Time Base to 10 */}
+                      <button
+                        type="button"
+                        className="text-gray-700 dark:text-gray-400 mx-2 px-2 py-1 border rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+                        onClick={() => setTimeBase(10)}
+                      >
+                        10
+                      </button>
+                      <style jsx>{` input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none;appearance: none; width: 15px; height: 15px;
+                                                                  background-color: rgb(101, 136, 205); border-radius: 50%; cursor: pointer; }`}</style>
                     </div>
                   </div>
                 </div>
-                <div className="flex flex-col space-y-2">
-                  {channelNames.map((filterName, index) => (
-                    <div key={filterName} className="flex items-center">
-                      {/* Filter Name */}
-                      <div className="text-sm font-semibold w-12">{filterName}</div>
-                      {/* Buttons */}
-                      <div className="flex space-x-2">
-                        <div className="flex border border-input rounded-xl items-center mx-0 px-0">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => removeEXGFilter(index)}
-                            className={`rounded-xl rounded-r-none border-l-none border-0
-                                                        ${appliedEXGFiltersRef.current[index] === undefined
-                                ? "bg-red-700 hover:bg-white-500 hover:text-white text-white" // Disabled background
-                                : "bg-white-500" // Active background
-                              }`}
-                          >
-                            <CircleOff size={17} />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleFrequencySelectionEXG(index, 4)}
-                            className={`flex items-center justify-center px-3 py-2 rounded-none select-none border-0
-                                                        ${appliedEXGFiltersRef.current[index] === 4
-                                ? "bg-green-700 hover:bg-white-500 text-white hover:text-white" // Disabled background
-                                : "bg-white-500" // Active background
-                              }`}
-                          >
-                            <BicepsFlexed size={17} />
-                          </Button>
-                        
-                        </div>
-                        <div className="flex border border-input rounded-xl items-center mx-0 px-0">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => removeNotchFilter(index)}
-                            className={`rounded-xl rounded-r-none border-0
-                                                        ${appliedFiltersRef.current[index] === undefined
-                                ? "bg-red-700 hover:bg-white-500 hover:text-white text-white" // Disabled background
-                                : "bg-white-500" // Active background
-                              }`}
-                          >
-                            <CircleOff size={17} />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleFrequencySelection(index, 1)}
-                            className={`flex items-center justify-center px-3 py-2 rounded-none select-none border-0
-                                                        ${appliedFiltersRef.current[index] === 1
-                                ? "bg-green-700 hover:bg-white-500 text-white hover:text-white" // Disabled background
-                                : "bg-white-500" // Active background
-                              }`}
-                          >
-                            50Hz
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleFrequencySelection(index, 2)}
-                            className={
-                              `rounded-xl rounded-l-none border-0 ${appliedFiltersRef.current[index] === 2
-                                ? "bg-green-700 hover:bg-white-500 text-white hover:text-white "
-                                : "bg-white-500 animate-fade-in-right"
-                              }`
-                            }
-                          >
-                            60Hz
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+
+              </TooltipProvider>
             </PopoverContent>
           </Popover>
         </div>
